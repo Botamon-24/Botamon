@@ -1,0 +1,252 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 100% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 221 20% 95%;
+    --card-foreground: 220 70% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 213 31% 91%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 222 47% 5%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 217 78% 45%;
+    --primary-foreground: 222.2 47.4% 99.2%;
+
+    --secondary: 222 47% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 224 76% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 蓝色监狱主题特定样式 */
+.bl-title {
+  @apply font-bold text-bl-blue-accent;
+  text-shadow: 0 0 8px rgba(0, 195, 255, 0.3);
+}
+
+.bl-title-glow {
+  @apply font-bold text-bl-blue-accent animate-glow;
+}
+
+.bl-gradient-text {
+  @apply text-transparent bg-clip-text;
+  background-image: linear-gradient(135deg, #1353c9 0%, #00c3ff 100%);
+}
+
+.bl-card {
+  @apply relative overflow-hidden rounded-lg border border-bl-dark-light/30 bg-bl-dark-light/10 backdrop-blur-sm;
+}
+
+.bl-card::after {
+  content: '';
+  @apply absolute top-0 right-0 h-32 w-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-bl-blue-accent/10 blur-2xl;
+}
+
+.bl-button {
+  @apply rounded-md bg-bl-blue px-4 py-2 font-medium text-white transition-all hover:bg-bl-blue-light hover:shadow-md hover:shadow-bl-blue/20;
+}
+
+.bl-outline-button {
+  @apply rounded-md border border-bl-blue-light/50 bg-transparent px-4 py-2 font-medium text-bl-blue-light transition-all hover:bg-bl-blue/10 hover:shadow-md hover:shadow-bl-blue/10;
+}
+
+.bl-glass {
+  @apply rounded-lg bg-white/5 p-4 backdrop-blur-lg;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bl-gradient-border {
+  position: relative;
+  border-radius: 0.5rem;
+}
+
+.bl-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.5rem;
+  padding: 1px;
+  background: linear-gradient(135deg, #1353c9 0%, #00c3ff 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-bl-dark-light/20;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-bl-blue;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-bl-blue-light;
+}
+
+/* 页面过渡动画相关样式 */
+.page-transition-enter {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* 自定义加载动画 */
+.loading-animation {
+  @apply relative inline-block h-16 w-16 rounded-full border-4 border-bl-blue-accent;
+}
+
+.loading-animation:after {
+  content: '';
+  @apply absolute inset-1 rounded-full border-4 border-t-bl-blue border-r-transparent border-b-transparent border-l-transparent;
+  animation: loading-spin 1s linear infinite;
+}
+
+@keyframes loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 全局动画效果 */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes blue-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(19, 83, 201, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(19, 83, 201, 0.3);
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.8s ease-in-out;
+}
+
+.slide-up {
+  animation: slide-up 0.6s ease-out;
+}
+
+.blue-pulse {
+  animation: blue-pulse 2s infinite;
+}
+
+/* 底部装饰的发光效果 */
+.glow-effect {
+  animation: glow 3s ease-in-out infinite;
+  box-shadow: 0 0 5px rgba(14, 165, 233, 0.3);
+}
+
+@keyframes glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px rgba(14, 165, 233, 0.3), 0 0 10px rgba(14, 165, 233, 0.2); 
+  }
+  50% { 
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.5), 0 0 20px rgba(14, 165, 233, 0.3); 
+  }
+}

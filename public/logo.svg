@@ -1,0 +1,17 @@
+<svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .text { font-family: Arial, sans-serif; font-weight: bold; }
+    .main-text { fill: #00c3ff; font-size: 24px; }
+    .sub-text { fill: #1353c9; font-size: 10px; letter-spacing: 1px; }
+  </style>
+
+  <!-- Main text -->
+  <text x="5" y="25" class="text main-text">BOTAMON</text>
+
+  <!-- Subtitle text -->
+  <text x="6" y="35" class="text sub-text">PORTFOLIO</text>
+
+  <!-- Decorative element -->
+  <rect x="0" y="0" width="4" height="40" fill="#1353c9" />
+  <rect x="0" y="0" width="120" height="4" fill="#1353c9" />
+</svg>
