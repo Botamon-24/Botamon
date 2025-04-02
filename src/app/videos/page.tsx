@@ -24,12 +24,32 @@ interface VideoData {
   category: VideoCategory;
 }
 
-// 视频预加载功能
+// 优化后的视频预加载功能
 function useVideoPreloader() {
   // 使用Set来存储已预加载的视频URL
   const [preloadedVideos, setPreloadedVideos] = useState<Set<string>>(new Set<string>());
   // 使用一个标记确保预加载过程只发生一次
   const hasStartedPreloading = useRef<boolean>(false);
+  
+  // 在组件挂载时，从会话存储中恢复已预加载的视频列表
+  useEffect(() => {
+    // 尝试从会话存储中恢复预加载列表
+    try {
+      const storedVideos = sessionStorage.getItem('preloadedVideos');
+      if (storedVideos) {
+        const videoList = JSON.parse(storedVideos) as string[];
+        setPreloadedVideos(new Set(videoList));
+        console.log(`从会话中恢复了${videoList.length}个预加载视频记录`);
+        
+        // 如果已经有预加载记录，说明已经进行过预加载
+        if (videoList.length > 0) {
+          hasStartedPreloading.current = true;
+        }
+      }
+    } catch (e) {
+      console.error("恢复预加载记录失败:", e);
+    }
+  }, []);
 
   // 判断是否是直接的视频URL（可以直接预加载的视频）
   const isDirectVideoUrl = (url: string): boolean => {
@@ -40,7 +60,7 @@ function useVideoPreloader() {
            url.endsWith('.webm');
   };
 
-  // 预加载单个视频的函数
+  // 预加载单个视频的函数 - 优化版本
   const preloadVideo = (url: string): void => {
     // 如果视频已经预加载过，或者不是直接的视频URL，则跳过
     if (preloadedVideos.has(url) || !isDirectVideoUrl(url)) return;
@@ -49,34 +69,58 @@ function useVideoPreloader() {
     
     // 创建一个视频元素来预加载
     const videoElement = document.createElement('video');
-    videoElement.preload = 'auto'; // 设置为自动预加载
-    videoElement.src = url;        // 设置视频源
-    videoElement.load();           // 开始加载视频
+    videoElement.preload = 'metadata'; // 仅预加载元数据，而不是整个视频
+    videoElement.src = url;        
+    videoElement.load();           
     
     // 将此视频URL添加到已预加载的集合中
-    setPreloadedVideos(prev => new Set([...prev, url]));
+    const newPreloadedVideos = new Set([...preloadedVideos, url]);
+    setPreloadedVideos(newPreloadedVideos);
+    
+    // 保存到会话存储中，这样刷新页面后不会重复预加载
+    try {
+      sessionStorage.setItem('preloadedVideos', JSON.stringify([...newPreloadedVideos]));
+    } catch (e) {
+      console.error("保存预加载记录失败:", e);
+    }
   };
 
-  // 批量预加载多个视频的函数
-  const preloadVideoBatch = (videos: VideoData[], count: number = 10): void => {
+  // 批量预加载多个视频的函数 - 优化版本，只预加载前3个视频
+  const preloadVideoBatch = (videos: VideoData[]): void => {
     // 确保只执行一次预加载
-    if (hasStartedPreloading.current) return;
+    if (hasStartedPreloading.current) {
+      console.log("已经进行过预加载，跳过此次操作");
+      return;
+    }
+    
     hasStartedPreloading.current = true;
     
-    console.log(`开始预加载前${count}个视频...`);
+    // 降低预加载数量从10个变为最多3个
+    const maxPreloadCount = 3;
+    console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
     // 筛选出直接视频URL并截取前count个
     const directVideoUrls = videos
       .filter(video => isDirectVideoUrl(video.videoUrl))
-      .slice(0, count)
+      .slice(0, maxPreloadCount)
       .map(video => video.videoUrl);
+      
+    // 检查这些URL是否已经在会话中预加载过
+    const urlsToPreload = directVideoUrls.filter(url => !preloadedVideos.has(url));
     
-    // 逐个预加载视频，每个视频间隔200毫秒
-    directVideoUrls.forEach((url, index) => {
+    if (urlsToPreload.length === 0) {
+      console.log("所有视频已经预加载过，无需再次预加载");
+      return;
+    }
+    
+    console.log(`实际需要预加载的视频数量: ${urlsToPreload.length}`);
+    
+    // 逐个预加载视频，每个视频间隔500毫秒（增加间隔以减轻网络负担）
+    urlsToPreload.forEach((url, index) => {
       setTimeout(() => {
         preloadVideo(url);
-        console.log(`预加载视频 ${index + 1}/${directVideoUrls.length}: ${url}`);
-      }, index * 200);
+        console.log(`预加载视频 ${index + 1}/${urlsToPreload.length}: ${url}`);
+      }, index * 500); // 将间隔从200ms增加到500ms
     });
   };
 
@@ -452,12 +496,17 @@ export default function VideosPage() {
   // 使用预加载钩子
   const { preloadVideoBatch } = useVideoPreloader();
   
-  // 当页面加载后，预加载前10个视频
+  // 当页面加载后，延迟3秒再预加载前3个视频，避免与页面加载竞争资源
   useEffect(() => {
-    // 页面加载完成后，启动预加载过程
-    preloadVideoBatch(videosData, 10);
+    // 设置定时器，延迟3秒后再执行预加载
+    const timer = setTimeout(() => {
+      console.log("页面加载完成3秒后，开始预加载视频...");
+      preloadVideoBatch(videosData);
+    }, 3000);
     
-    // 这里需要添加preloadVideoBatch作为依赖项，但我们使用空数组是为了只执行一次
+    // 组件卸载时清除定时器
+    return () => clearTimeout(timer);
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -532,22 +581,33 @@ interface VideoCardProps {
   index: number;
 }
 
-// 视频卡片组件
+// 视频卡片组件 - 优化版本
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
   const { preloadVideo, preloadedVideos } = useVideoPreloader();
+  const [hasHovered, setHasHovered] = useState(false);
   
-  // 当用户悬停在视频卡片上时，尝试预加载视频
-  const handleHover = () => {
-    if (
-      video.videoUrl.includes('qiniucs.com') || 
-      video.videoUrl.includes('sabkt.gdipper.com') || 
-      video.videoUrl.includes('myqcloud.com') ||
-      video.videoUrl.endsWith('.mp4') || 
-      video.videoUrl.endsWith('.webm')
-    ) {
-      preloadVideo(video.videoUrl);
-    }
+  // 当用户悬停在视频卡片上3秒后才预加载视频，而不是立即预加载
+  const handleMouseEnter = () => {
+    if (hasHovered) return; // 如果已经悬停过，不再触发预加载
+    
+    // 使用超过3秒悬停才启动预加载机制
+    const hoverTimer = setTimeout(() => {
+      if (
+        video.videoUrl.includes('qiniucs.com') || 
+        video.videoUrl.includes('sabkt.gdipper.com') || 
+        video.videoUrl.includes('myqcloud.com') ||
+        video.videoUrl.endsWith('.mp4') || 
+        video.videoUrl.endsWith('.webm')
+      ) {
+        console.log(`用户长时间悬停在视频 ${video.title} 上，开始预加载...`);
+        preloadVideo(video.videoUrl);
+        setHasHovered(true); // 标记为已悬停预加载过
+      }
+    }, 3000); // 3秒后才预加载
+    
+    // 当鼠标移开时清除定时器
+    return () => clearTimeout(hoverTimer);
   };
 
   return (
@@ -555,7 +615,7 @@ function VideoCard({ video, index }: VideoCardProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
-      onMouseEnter={handleHover} // 当鼠标悬停时预加载视频
+      onMouseEnter={handleMouseEnter} // 当鼠标悬停时预加载视频
     >
       <Card className="overflow-hidden bg-card/80 backdrop-blur-sm transition-all hover:shadow-md hover:shadow-bl-blue/10">
         <CardHeader className="pb-2">
@@ -602,7 +662,7 @@ function VideoCard({ video, index }: VideoCardProps) {
                     controls
                     controlsList="nodownload"
                     onContextMenu={(e) => e.preventDefault()}
-                    preload={preloadedVideos.has(video.videoUrl) ? "auto" : "metadata"}
+                    preload="metadata" // 改为只预加载元数据，而不是整个视频
                     className="h-full w-full"
                     poster={video.thumbnail}
                     crossOrigin="anonymous"
