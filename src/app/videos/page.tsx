@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // 定义视频分类类型
 type VideoCategory = "Trace Esports" | "Yuetui Productions" | "Botamon" | "Botamon 3D";
@@ -24,70 +24,146 @@ interface VideoData {
   category: VideoCategory;
 }
 
-// 优化后的视频预加载功能
+// 增强的视频预加载功能（专注于缓存增强）
 function useVideoPreloader() {
-  // 使用Set来存储已预加载的视频URL
+  // 使用三种存储机制来持久化缓存
+  // 1. React状态 - 当前会话的内存缓存
   const [preloadedVideos, setPreloadedVideos] = useState<Set<string>>(new Set<string>());
-  // 使用一个标记确保预加载过程只发生一次
+  // 2. 本地存储 - 长期缓存，跨会话
+  const localStorageKey = 'video-cache-v1'; // 版本化缓存键
+  // 3. 会话存储 - 当前浏览会话
+  const sessionStorageKey = 'preloadedVideos';
+  
+  // 使用标记确保预加载过程只发生一次
   const hasStartedPreloading = useRef<boolean>(false);
   
-  // 在组件挂载时，从会话存储中恢复已预加载的视频列表
+  // 以下函数帮助检查视频是否已缓存
+  const isVideoCached = useCallback((url: string): boolean => {
+    // 检查视频是否在浏览器缓存中
+    // 不幸的是，JavaScript无法直接检查浏览器HTTP缓存
+    // 我们只能检查我们自己的缓存记录
+    return preloadedVideos.has(url);
+  }, [preloadedVideos]);
+  
+  // 从存储中加载缓存记录
   useEffect(() => {
-    // 尝试从会话存储中恢复预加载列表
     try {
-      const storedVideos = sessionStorage.getItem('preloadedVideos');
-      if (storedVideos) {
-        const videoList = JSON.parse(storedVideos) as string[];
-        setPreloadedVideos(new Set(videoList));
-        console.log(`从会话中恢复了${videoList.length}个预加载视频记录`);
+      // 尝试从会话存储中恢复
+      const sessionData = sessionStorage.getItem(sessionStorageKey);
+      // 尝试从本地存储中恢复（更持久）
+      const localData = localStorage.getItem(localStorageKey);
+      
+      let combinedUrls: string[] = [];
+      
+      if (sessionData) {
+        const urls = JSON.parse(sessionData) as string[];
+        combinedUrls = [...combinedUrls, ...urls];
+      }
+      
+      if (localData) {
+        const urls = JSON.parse(localData) as string[];
+        combinedUrls = [...combinedUrls, ...urls];
+      }
+      
+      if (combinedUrls.length > 0) {
+        // 数组去重并创建Set
+        const uniqueUrls = [...new Set(combinedUrls)];
+        setPreloadedVideos(new Set(uniqueUrls));
+        console.log(`从存储中恢复了${uniqueUrls.length}个预加载视频记录`);
         
-        // 如果已经有预加载记录，说明已经进行过预加载
-        if (videoList.length > 0) {
-          hasStartedPreloading.current = true;
-        }
+        // 如果已有缓存记录，表示已经进行过预加载
+        hasStartedPreloading.current = uniqueUrls.length > 0;
       }
     } catch (e) {
-      console.error("恢复预加载记录失败:", e);
+      console.error("恢复缓存记录失败:", e);
     }
   }, []);
-
-  // 判断是否是直接的视频URL（可以直接预加载的视频）
-  const isDirectVideoUrl = (url: string): boolean => {
+  
+  // 判断URL是否是直接的视频链接（可以缓存）
+  const isDirectVideoUrl = useCallback((url: string): boolean => {
+    // B站视频不需要预加载
+    if (url.includes('bilibili.com')) return false;
+    
     return url.includes('qiniucs.com') || 
            url.includes('sabkt.gdipper.com') || 
            url.includes('myqcloud.com') ||
            url.endsWith('.mp4') || 
            url.endsWith('.webm');
-  };
+  }, []);
 
-  // 预加载单个视频的函数 - 优化版本
-  const preloadVideo = (url: string): void => {
-    // 如果视频已经预加载过，或者不是直接的视频URL，则跳过
-    if (preloadedVideos.has(url) || !isDirectVideoUrl(url)) return;
+  // 强化缓存的预加载函数
+  const preloadVideo = useCallback((url: string): void => {
+    // 如果已缓存或不是直接视频URL，则跳过
+    if (isVideoCached(url) || !isDirectVideoUrl(url)) return;
     
-    console.log(`开始预加载视频: ${url}`);
+    console.log(`开始缓存视频: ${url}`);
     
-    // 创建一个视频元素来预加载
-    const videoElement = document.createElement('video');
-    videoElement.preload = 'metadata'; // 仅预加载元数据，而不是整个视频
-    videoElement.src = url;        
-    videoElement.load();           
+    // 使用XHR发送HEAD请求，设置缓存控制头
+    const xhr = new XMLHttpRequest();
+    xhr.open('HEAD', url, true);
+    xhr.setRequestHeader('Cache-Control', 'max-age=31536000'); // 缓存一年
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          // HEAD请求成功，现在创建视频元素进行预加载
+          const videoElement = document.createElement('video');
+          videoElement.preload = 'metadata'; // 仅预加载元数据
+          
+          // 添加加载元数据事件处理器
+          videoElement.addEventListener('loadedmetadata', function() {
+            console.log(`已成功缓存视频元数据: ${url}`);
+            
+            // 更新缓存记录
+            updateCacheRecord(url);
+          });
+          
+          // 设置视频源并加载
+          videoElement.src = url;
+          videoElement.load();
+        }
+      }
+    };
+    xhr.send();
+  }, [isVideoCached, isDirectVideoUrl]);
+  
+  // 更新缓存记录到三个存储位置
+  const updateCacheRecord = useCallback((url: string) => {
+    // 1. 更新React状态
+    const newCache = new Set([...preloadedVideos, url]);
+    setPreloadedVideos(newCache);
     
-    // 将此视频URL添加到已预加载的集合中
-    const newPreloadedVideos = new Set([...preloadedVideos, url]);
-    setPreloadedVideos(newPreloadedVideos);
-    
-    // 保存到会话存储中，这样刷新页面后不会重复预加载
+    // 2. 更新会话存储
     try {
-      sessionStorage.setItem('preloadedVideos', JSON.stringify([...newPreloadedVideos]));
+      const urlArray = [...newCache];
+      sessionStorage.setItem(sessionStorageKey, JSON.stringify(urlArray));
     } catch (e) {
-      console.error("保存预加载记录失败:", e);
+      console.error("保存到会话存储失败:", e);
     }
-  };
-
-  // 批量预加载多个视频的函数 - 优化版本，只预加载前3个视频
-  const preloadVideoBatch = (videos: VideoData[]): void => {
-    // 确保只执行一次预加载
+    
+    // 3. 更新本地存储（长期缓存）
+    try {
+      // 先读取现有记录，避免覆盖
+      const existingData = localStorage.getItem(localStorageKey);
+      let urlsToStore: string[] = [];
+      
+      if (existingData) {
+        urlsToStore = JSON.parse(existingData) as string[];
+      }
+      
+      // 添加新URL并去重
+      if (!urlsToStore.includes(url)) {
+        urlsToStore.push(url);
+      }
+      
+      localStorage.setItem(localStorageKey, JSON.stringify(urlsToStore));
+    } catch (e) {
+      console.error("保存到本地存储失败:", e);
+    }
+  }, [preloadedVideos]);
+  
+  // 批量预加载多个视频（限制数量，减少流量）
+  const preloadVideoBatch = useCallback((videos: VideoData[]): void => {
+    // 如果已经开始预加载，跳过
     if (hasStartedPreloading.current) {
       console.log("已经进行过预加载，跳过此次操作");
       return;
@@ -95,37 +171,42 @@ function useVideoPreloader() {
     
     hasStartedPreloading.current = true;
     
-    // 降低预加载数量从10个变为最多3个
-    const maxPreloadCount = 3;
+    // 减少预加载数量到2个
+    const maxPreloadCount = 2; // 从3个减少到2个
     console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
-    // 筛选出直接视频URL并截取前count个
+    // 筛选出直接视频URL
     const directVideoUrls = videos
       .filter(video => isDirectVideoUrl(video.videoUrl))
       .slice(0, maxPreloadCount)
       .map(video => video.videoUrl);
       
-    // 检查这些URL是否已经在会话中预加载过
-    const urlsToPreload = directVideoUrls.filter(url => !preloadedVideos.has(url));
+    // 过滤掉已缓存的视频
+    const urlsToPreload = directVideoUrls.filter(url => !isVideoCached(url));
     
     if (urlsToPreload.length === 0) {
-      console.log("所有视频已经预加载过，无需再次预加载");
+      console.log("所有视频已经缓存过，无需再次预加载");
       return;
     }
     
     console.log(`实际需要预加载的视频数量: ${urlsToPreload.length}`);
     
-    // 逐个预加载视频，每个视频间隔500毫秒（增加间隔以减轻网络负担）
+    // 延长预加载间隔到1000毫秒，减轻服务器负担
     urlsToPreload.forEach((url, index) => {
       setTimeout(() => {
         preloadVideo(url);
         console.log(`预加载视频 ${index + 1}/${urlsToPreload.length}: ${url}`);
-      }, index * 500); // 将间隔从200ms增加到500ms
+      }, index * 1000); // 从500ms增加到1000ms
     });
-  };
+  }, [isDirectVideoUrl, isVideoCached, preloadVideo]);
 
-  // 返回预加载相关的函数和状态
-  return { preloadVideo, preloadVideoBatch, preloadedVideos };
+  // 返回相关函数和状态
+  return { 
+    preloadVideo, 
+    preloadVideoBatch, 
+    preloadedVideos,
+    isVideoCached 
+  };
 }
 
 
@@ -261,7 +342,7 @@ const videosData: VideoData[] = [
     description: "TE YANGY VLOG",
     date: "",
     thumbnail: "/thumbnails/13.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E7%AC%AC%E4%BA%94%E4%BA%BA%E6%A0%BC%2FTE%20%E7%BE%8A%E7%BE%8A%20%E6%8B%8D%E6%91%84%E7%9F%AD%E8%A7%86%E9%A2%91.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV14uWxeKEj7/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -288,7 +369,7 @@ const videosData: VideoData[] = [
     description: "TE 孤高之人岳山抖音热点",
     date: "",
     thumbnail: "/thumbnails/16.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2F%E5%AD%A4%E9%AB%98%E4%B9%8B%E4%BA%BA%20%E5%B2%B3%E5%B1%B1%20%E6%8A%96%E9%9F%B3%E7%83%AD%E7%82%B9B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV1Qy411z7ns/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -315,7 +396,7 @@ const videosData: VideoData[] = [
     description: "TE TXJ 单人海报",
     date: "",
     thumbnail: "/thumbnails/19.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2FTXJ%E5%8D%95%E4%BA%BA%E6%B5%B7%E6%8A%A5B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV1WS411w7Xw/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -324,7 +405,7 @@ const videosData: VideoData[] = [
     description: "TE VVV 单人海报 ",
     date: "",
     thumbnail: "/thumbnails/20.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2FVVV%E5%8D%95%E4%BA%BA%E6%B5%B7%E6%8A%A5%20B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV12H4y1w74y/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -333,7 +414,7 @@ const videosData: VideoData[] = [
     description: "TE LYD 单人海报 ",
     date: "",
     thumbnail: "/thumbnails/21.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2FLYD%E5%8D%95%E4%BA%BA%E6%B5%B7%E6%8A%A5%20B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV1CM4m127TW/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -342,7 +423,7 @@ const videosData: VideoData[] = [
     description: "TE LEO 单人海报",
     date: "",
     thumbnail: "/thumbnails/22.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2FLEO%E5%8D%95%E4%BA%BA%E6%B5%B7%E6%8A%A5B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV1ri421Y7TF/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -351,7 +432,7 @@ const videosData: VideoData[] = [
     description: "TE 战队海报",
     date: "",
     thumbnail: "/thumbnails/23.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E6%B0%B8%E5%8A%AB%E6%97%A0%E9%97%B4%2FTE%E6%88%98%E9%98%9F%E6%B5%B7%E6%8A%A5B.mp4", // 示例链接，可替换
+    videoUrl: "https://www.bilibili.com/video/BV1RE4m1X7na/?spm_id_from=333.1387.upload.video_card.click&vd_source=6f146b26a3b38df590f9144fc8f3304f", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -496,13 +577,13 @@ export default function VideosPage() {
   // 使用预加载钩子
   const { preloadVideoBatch } = useVideoPreloader();
   
-  // 当页面加载后，延迟3秒再预加载前3个视频，避免与页面加载竞争资源
+  // 当页面加载后，延迟5秒再预加载，避免与页面加载竞争资源
   useEffect(() => {
-    // 设置定时器，延迟3秒后再执行预加载
+    // 延长等待时间到5秒
     const timer = setTimeout(() => {
-      console.log("页面加载完成3秒后，开始预加载视频...");
+      console.log("页面加载完成5秒后，开始预加载视频...");
       preloadVideoBatch(videosData);
-    }, 3000);
+    }, 5000); // 从3秒增加到5秒
     
     // 组件卸载时清除定时器
     return () => clearTimeout(timer);
@@ -510,8 +591,10 @@ export default function VideosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 页面组件的渲染部分保持不变
   return (
     <div className="container mx-auto px-4 py-12 md:py-24">
+      {/* 现有内容不变 */}
       <div className="mb-16 text-center">
         <motion.h1
           className="mb-4 text-4xl font-bold tracking-tight text-bl-blue-accent"
@@ -575,23 +658,27 @@ export default function VideosPage() {
   );
 }
 
-// 视频卡片组件的Props接口
+// 视频卡片组件
 interface VideoCardProps {
   video: VideoData;
   index: number;
 }
 
-// 视频卡片组件 - 优化版本
+// 优化后的视频卡片组件
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
-  const { preloadVideo, preloadedVideos } = useVideoPreloader();
+  const { preloadVideo, preloadedVideos, isVideoCached } = useVideoPreloader();
   const [hasHovered, setHasHovered] = useState(false);
+  const [hasClicked, setHasClicked] = useState(false);
   
-  // 当用户悬停在视频卡片上3秒后才预加载视频，而不是立即预加载
-  const handleMouseEnter = () => {
-    if (hasHovered) return; // 如果已经悬停过，不再触发预加载
+  // 检查是否为B站视频
+  const isBilibiliVideo = video.videoUrl.includes('bilibili.com');
+  
+  // 当用户悬停在视频卡片上5秒后才预加载视频，而不是立即预加载
+  const handleMouseEnter = useCallback(() => {
+    if (hasHovered || isBilibiliVideo) return; // 已悬停过或B站视频，不预加载
     
-    // 使用超过3秒悬停才启动预加载机制
+    // 使用更长的悬停时间触发预加载（5秒）
     const hoverTimer = setTimeout(() => {
       if (
         video.videoUrl.includes('qiniucs.com') || 
@@ -604,18 +691,27 @@ function VideoCard({ video, index }: VideoCardProps) {
         preloadVideo(video.videoUrl);
         setHasHovered(true); // 标记为已悬停预加载过
       }
-    }, 3000); // 3秒后才预加载
+    }, 5000); // 从3秒增加到5秒
     
     // 当鼠标移开时清除定时器
     return () => clearTimeout(hoverTimer);
-  };
+  }, [hasHovered, isBilibiliVideo, video, preloadVideo]);
+
+  // 点击播放按钮处理
+  const handlePlayClick = useCallback(() => {
+    setHasClicked(true);
+    if (!isBilibiliVideo && !isVideoCached(video.videoUrl)) {
+      // 用户真正点击了，此时预加载是必要的
+      preloadVideo(video.videoUrl);
+    }
+  }, [isBilibiliVideo, isVideoCached, preloadVideo, video.videoUrl]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
-      onMouseEnter={handleMouseEnter} // 当鼠标悬停时预加载视频
+      onMouseEnter={handleMouseEnter}
     >
       <Card className="overflow-hidden bg-card/80 backdrop-blur-sm transition-all hover:shadow-md hover:shadow-bl-blue/10">
         <CardHeader className="pb-2">
@@ -630,13 +726,17 @@ function VideoCard({ video, index }: VideoCardProps) {
         <CardContent className="p-0">
           <Dialog>
             <DialogTrigger asChild>
-              <div className="relative w-full cursor-pointer overflow-hidden transition-all hover:opacity-90">
+              <div 
+                className="relative w-full cursor-pointer overflow-hidden transition-all hover:opacity-90"
+                onClick={handlePlayClick}
+              >
                 <AspectRatio ratio={16 / 9}>
                   <Image
                     src={video.thumbnail}
                     alt={video.title}
                     fill
                     className="object-cover"
+                    loading="lazy" // 使用懒加载减少缩略图流量
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity hover:opacity-100">
                     <Button variant="outline" className="border-white bg-transparent text-white hover:bg-white/20">
@@ -662,18 +762,30 @@ function VideoCard({ video, index }: VideoCardProps) {
                     controls
                     controlsList="nodownload"
                     onContextMenu={(e) => e.preventDefault()}
-                    preload="metadata" // 改为只预加载元数据，而不是整个视频
+                    preload={isVideoCached(video.videoUrl) ? "auto" : "metadata"}
                     className="h-full w-full"
                     poster={video.thumbnail}
                     crossOrigin="anonymous"
-                  />
+                    // 添加加载开始和成功事件处理
+                    onLoadStart={() => console.log(`开始加载视频: ${video.title}`)}
+                    onCanPlay={() => {
+                      console.log(`视频可以播放了: ${video.title}`);
+                      // 将视频标记为已缓存
+                      if (!isVideoCached(video.videoUrl)) {
+                        preloadVideo(video.videoUrl);
+                      }
+                    }}
+                  >
+                    <track kind="captions" src="" label="English" />
+                  </video>
                 ) : video.videoUrl.includes('bilibili.com') ? (
                   <iframe
                     src={`//player.bilibili.com/player.html?${new URLSearchParams({
                       bvid: video.videoUrl.match(/video\/(BV\w+)/)?.[1] || '',
                       page: '1',
                       high_quality: '1',
-                      autoplay: '0',
+                      // 如果用户点击了播放，则自动播放
+                      autoplay: hasClicked ? '1' : '0',
                       danmaku: '0'
                     })}`}
                     className="w-full h-full border-none"
@@ -687,7 +799,7 @@ function VideoCard({ video, index }: VideoCardProps) {
                 ) : (
                   <iframe
                     src={video.videoUrl}
-                    className="h-full w-full"
+                    className="w-full h-full"
                     allowFullScreen
                     title={video.title}
                     frameBorder="0"
@@ -700,6 +812,10 @@ function VideoCard({ video, index }: VideoCardProps) {
         <CardFooter className="flex justify-between pt-4">
           <span className="inline-block rounded-full bg-bl-blue-dark/40 px-3 py-1 text-xs font-medium uppercase text-bl-blue-light">
             {video.category}
+          </span>
+          {/* 显示视频来源和缓存状态 */}
+          <span className="text-xs text-muted-foreground">
+            {isBilibiliVideo ? "Bilibili" : isVideoCached(video.videoUrl) ? "已缓存" : "COS"}
           </span>
         </CardFooter>
       </Card>
