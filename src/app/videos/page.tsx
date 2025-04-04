@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // 定义视频分类类型
 type VideoCategory = "Trace Esports" | "Yuetui Productions" | "Botamon" | "Botamon 3D";
@@ -24,175 +24,70 @@ interface VideoData {
   category: VideoCategory;
 }
 
-// 增强的视频预加载功能（专注于缓存增强）
+// 优化后的视频预加载功能
 function useVideoPreloader() {
-  // 使用三种存储机制来持久化缓存状态记录（注意：这只是记录，不是实际缓存）
-  // 1. React状态 - 当前会话的内存缓存状态记录
+  // 使用Set来存储已预加载的视频URL
   const [preloadedVideos, setPreloadedVideos] = useState<Set<string>>(new Set<string>());
-  // 实际预加载的视频元素引用存储
-  const preloadedElements = useRef<Map<string, HTMLVideoElement>>(new Map());
-  // 2. 本地存储 - 长期缓存记录，跨会话
-  const localStorageKey = 'video-cache-v2'; // 更新版本号
-  // 3. 会话存储 - 当前浏览会话
-  const sessionStorageKey = 'preloadedVideos-v2'; // 更新版本号
-  
-  // 使用标记确保预加载过程只发生一次
+  // 使用一个标记确保预加载过程只发生一次
   const hasStartedPreloading = useRef<boolean>(false);
   
-  // 检查视频是否已经真正加载（不仅仅检查状态记录）
-  const isVideoCached = useCallback((url: string): boolean => {
-    // 首先检查是否有预加载元素
-    if (preloadedElements.current.has(url)) {
-      return true;
-    }
-    // 然后检查记录
-    return preloadedVideos.has(url);
-  }, [preloadedVideos]);
-  
-  // 从存储中加载缓存记录
+  // 在组件挂载时，从会话存储中恢复已预加载的视频列表
   useEffect(() => {
+    // 尝试从会话存储中恢复预加载列表
     try {
-      // 尝试清除旧版本缓存记录
-      localStorage.removeItem('video-cache-v1');
-      sessionStorage.removeItem('preloadedVideos');
-      
-      // 尝试从会话存储中恢复
-      const sessionData = sessionStorage.getItem(sessionStorageKey);
-      // 尝试从本地存储中恢复（更持久）
-      const localData = localStorage.getItem(localStorageKey);
-      
-      let combinedUrls: string[] = [];
-      
-      if (sessionData) {
-        const urls = JSON.parse(sessionData) as string[];
-        combinedUrls = [...combinedUrls, ...urls];
-      }
-      
-      if (localData) {
-        const urls = JSON.parse(localData) as string[];
-        combinedUrls = [...combinedUrls, ...urls];
-      }
-      
-      if (combinedUrls.length > 0) {
-        // 数组去重并创建Set
-        const uniqueUrls = [...new Set(combinedUrls)];
-        setPreloadedVideos(new Set(uniqueUrls));
-        console.log(`从存储中恢复了${uniqueUrls.length}个预加载视频记录`);
+      const storedVideos = sessionStorage.getItem('preloadedVideos');
+      if (storedVideos) {
+        const videoList = JSON.parse(storedVideos) as string[];
+        setPreloadedVideos(new Set(videoList));
+        console.log(`从会话中恢复了${videoList.length}个预加载视频记录`);
         
-        // 注意：恢复记录不等于恢复缓存，我们只恢复了"曾经加载过"的记录
-        // 实际的视频内容可能已经从浏览器缓存中被清除
+        // 如果已经有预加载记录，说明已经进行过预加载
+        if (videoList.length > 0) {
+          hasStartedPreloading.current = true;
+        }
       }
     } catch (e) {
-      console.error("恢复缓存记录失败:", e);
+      console.error("恢复预加载记录失败:", e);
     }
   }, []);
-  
-  // 判断URL是否是直接的视频链接（可以缓存）
-  const isDirectVideoUrl = useCallback((url: string): boolean => {
-    // B站视频不需要预加载
-    if (url.includes('bilibili.com')) return false;
-    
+
+  // 判断是否是直接的视频URL（可以直接预加载的视频）
+  const isDirectVideoUrl = (url: string): boolean => {
     return url.includes('qiniucs.com') || 
            url.includes('sabkt.gdipper.com') || 
            url.includes('myqcloud.com') ||
            url.endsWith('.mp4') || 
            url.endsWith('.webm');
-  }, []);
+  };
 
-  // 彻底重写的预加载函数 - 更可靠的实现
-  const preloadVideo = useCallback((url: string): void => {
-    // 如果已缓存或不是直接视频URL，则跳过
-    if (preloadedElements.current.has(url) || !isDirectVideoUrl(url)) return;
+  // 预加载单个视频的函数 - 优化版本
+  const preloadVideo = (url: string): void => {
+    // 如果视频已经预加载过，或者不是直接的视频URL，则跳过
+    if (preloadedVideos.has(url) || !isDirectVideoUrl(url)) return;
     
-    console.log(`开始真正预加载视频: ${url}`);
+    console.log(`开始预加载视频: ${url}`);
     
-    // 创建一个新的视频元素用于预加载
+    // 创建一个视频元素来预加载
     const videoElement = document.createElement('video');
-    videoElement.muted = true; // 静音加载
-    videoElement.playsInline = true;
-    videoElement.crossOrigin = "anonymous"; // 确保跨域加载
+    videoElement.preload = 'metadata'; // 仅预加载元数据，而不是整个视频
+    videoElement.src = url;        
+    videoElement.load();           
     
-    // 设置事件监听器
-    videoElement.addEventListener('loadedmetadata', () => {
-      console.log(`视频元数据已加载: ${url}`);
-    });
+    // 将此视频URL添加到已预加载的集合中
+    const newPreloadedVideos = new Set([...preloadedVideos, url]);
+    setPreloadedVideos(newPreloadedVideos);
     
-    videoElement.addEventListener('canplay', () => {
-      console.log(`视频可以播放了: ${url}`);
-      // 视频可以播放时，更新缓存记录
-      updateCacheRecord(url);
-      
-      // 存储预加载的元素，以便后续使用
-      preloadedElements.current.set(url, videoElement);
-    });
-    
-    videoElement.addEventListener('error', (e) => {
-      console.error(`视频加载失败: ${url}`, e);
-      // 从预加载记录中移除
-      preloadedElements.current.delete(url);
-    });
-    
-    // 设置视频源并加载
-    // 添加时间戳参数以避免缓存问题
-    const timestampedUrl = url.includes('?') 
-      ? `${url}&_t=${Date.now()}` 
-      : `${url}?_t=${Date.now()}`;
-    
-    videoElement.src = timestampedUrl;
-    videoElement.preload = 'auto'; // 使用auto而不是metadata，确保完整加载
-    videoElement.load();
-    
-    // 尝试预先缓冲一些内容（这会帮助更好地缓存视频）
-    videoElement.play().then(() => {
-      // 播放一小段后暂停
-      setTimeout(() => {
-        videoElement.pause();
-        console.log(`视频已预缓冲: ${url}`);
-      }, 500);
-    }).catch(err => {
-      console.warn(`自动播放被阻止，这是正常的: ${url}`, err);
-      // 自动播放被阻止不是错误，我们继续
-    });
-  }, [isDirectVideoUrl]);
-  
-  // 更新缓存记录到三个存储位置
-  const updateCacheRecord = useCallback((url: string) => {
-    // 1. 更新React状态
-    setPreloadedVideos(prev => new Set([...prev, url]));
-    
-    // 2. 更新会话存储
+    // 保存到会话存储中，这样刷新页面后不会重复预加载
     try {
-      const current = sessionStorage.getItem(sessionStorageKey);
-      let urls = current ? JSON.parse(current) as string[] : [];
-      if (!urls.includes(url)) {
-        urls.push(url);
-        sessionStorage.setItem(sessionStorageKey, JSON.stringify(urls));
-      }
+      sessionStorage.setItem('preloadedVideos', JSON.stringify([...newPreloadedVideos]));
     } catch (e) {
-      console.error("保存到会话存储失败:", e);
+      console.error("保存预加载记录失败:", e);
     }
-    
-    // 3. 更新本地存储（长期缓存）
-    try {
-      const current = localStorage.getItem(localStorageKey);
-      let urls = current ? JSON.parse(current) as string[] : [];
-      if (!urls.includes(url)) {
-        urls.push(url);
-        localStorage.setItem(localStorageKey, JSON.stringify(urls));
-      }
-    } catch (e) {
-      console.error("保存到本地存储失败:", e);
-    }
-  }, []);
-  
-  // 获取预加载的视频元素（如果有）
-  const getPreloadedElement = useCallback((url: string): HTMLVideoElement | null => {
-    return preloadedElements.current.get(url) || null;
-  }, []);
-  
-  // 批量预加载多个视频（限制数量，减少流量）
-  const preloadVideoBatch = useCallback((videos: VideoData[]): void => {
-    // 如果已经开始预加载，跳过
+  };
+
+  // 批量预加载多个视频的函数 - 优化版本，只预加载前3个视频
+  const preloadVideoBatch = (videos: VideoData[]): void => {
+    // 确保只执行一次预加载
     if (hasStartedPreloading.current) {
       console.log("已经进行过预加载，跳过此次操作");
       return;
@@ -200,43 +95,37 @@ function useVideoPreloader() {
     
     hasStartedPreloading.current = true;
     
-    // 减少预加载数量到1个（仅预加载第一个视频）
-    const maxPreloadCount = 1; // 从2个减少到1个
+    // 降低预加载数量从10个变为最多3个
+    const maxPreloadCount = 3;
     console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
-    // 筛选出直接视频URL
+    // 筛选出直接视频URL并截取前count个
     const directVideoUrls = videos
       .filter(video => isDirectVideoUrl(video.videoUrl))
       .slice(0, maxPreloadCount)
       .map(video => video.videoUrl);
       
-    // 过滤掉已缓存的视频
-    const urlsToPreload = directVideoUrls.filter(url => !preloadedElements.current.has(url));
+    // 检查这些URL是否已经在会话中预加载过
+    const urlsToPreload = directVideoUrls.filter(url => !preloadedVideos.has(url));
     
     if (urlsToPreload.length === 0) {
-      console.log("所有视频已经缓存过，无需再次预加载");
+      console.log("所有视频已经预加载过，无需再次预加载");
       return;
     }
     
     console.log(`实际需要预加载的视频数量: ${urlsToPreload.length}`);
     
-    // 增加预加载间隔到3000毫秒
+    // 逐个预加载视频，每个视频间隔500毫秒（增加间隔以减轻网络负担）
     urlsToPreload.forEach((url, index) => {
       setTimeout(() => {
         preloadVideo(url);
         console.log(`预加载视频 ${index + 1}/${urlsToPreload.length}: ${url}`);
-      }, index * 3000); // 从1000ms增加到3000ms
+      }, index * 500); // 将间隔从200ms增加到500ms
     });
-  }, [isDirectVideoUrl, preloadVideo]);
-
-  // 返回相关函数和状态
-  return { 
-    preloadVideo, 
-    preloadVideoBatch,
-    preloadedVideos,
-    isVideoCached,
-    getPreloadedElement
   };
+
+  // 返回预加载相关的函数和状态
+  return { preloadVideo, preloadVideoBatch, preloadedVideos };
 }
 
 
@@ -607,13 +496,13 @@ export default function VideosPage() {
   // 使用预加载钩子
   const { preloadVideoBatch } = useVideoPreloader();
   
-  // 当页面加载后，延迟8秒再预加载，避免与页面加载竞争资源
+  // 当页面加载后，延迟3秒再预加载前3个视频，避免与页面加载竞争资源
   useEffect(() => {
-    // 延长等待时间到8秒
+    // 设置定时器，延迟3秒后再执行预加载
     const timer = setTimeout(() => {
-      console.log("页面加载完成8秒后，开始预加载视频...");
+      console.log("页面加载完成3秒后，开始预加载视频...");
       preloadVideoBatch(videosData);
-    }, 8000); // 从5秒增加到8秒
+    }, 3000);
     
     // 组件卸载时清除定时器
     return () => clearTimeout(timer);
@@ -621,10 +510,8 @@ export default function VideosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 页面组件的渲染部分保持不变
   return (
     <div className="container mx-auto px-4 py-12 md:py-24">
-      {/* 现有内容不变 */}
       <div className="mb-16 text-center">
         <motion.h1
           className="mb-4 text-4xl font-bold tracking-tight text-bl-blue-accent"
@@ -688,105 +575,47 @@ export default function VideosPage() {
   );
 }
 
-// 视频卡片组件
+// 视频卡片组件的Props接口
 interface VideoCardProps {
   video: VideoData;
   index: number;
 }
 
-// 完全重写的视频卡片组件
+// 视频卡片组件 - 优化版本
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
-  const { preloadVideo, isVideoCached, getPreloadedElement } = useVideoPreloader();
-  const [loadError, setLoadError] = useState(false);  // 新增：跟踪加载错误
-  const [isPlaying, setIsPlaying] = useState(false);  // 新增：跟踪视频是否正在播放
-  const [dialogOpen, setDialogOpen] = useState(false); // 新增：跟踪对话框是否打开
-  const videoRef = useRef<HTMLVideoElement | null>(null); // 新增：引用当前视频元素
+  const { preloadVideo, preloadedVideos } = useVideoPreloader();
+  const [hasHovered, setHasHovered] = useState(false);
   
-  // 检查是否为B站视频
-  const isBilibiliVideo = video.videoUrl.includes('bilibili.com');
-  const isDirectVideo = !isBilibiliVideo && (
-    video.videoUrl.includes('qiniucs.com') || 
-    video.videoUrl.includes('sabkt.gdipper.com') || 
-    video.videoUrl.includes('myqcloud.com') ||
-    video.videoUrl.endsWith('.mp4') || 
-    video.videoUrl.endsWith('.webm')
-  );
-  
-  // 当对话框打开时尝试加载视频
-  useEffect(() => {
-    if (dialogOpen && isDirectVideo && !isBilibiliVideo) {
-      console.log(`对话框已打开，正在尝试加载视频: ${video.title}`);
-      
-      // 重置错误状态
-      setLoadError(false);
-      
-      // 尝试获取预加载的元素
-      const preloadedElement = getPreloadedElement(video.videoUrl);
-      if (preloadedElement && videoRef.current) {
-        console.log(`使用预加载的视频元素: ${video.title}`);
-        
-        // 复制预加载元素的源到当前视频元素
-        videoRef.current.src = preloadedElement.src;
-        videoRef.current.load();
-      } else if (videoRef.current) {
-        // 没有预加载元素，直接加载
-        console.log(`没有预加载元素，直接加载: ${video.title}`);
-        
-        // 添加时间戳参数以避免缓存问题
-        const timestampedUrl = video.videoUrl.includes('?') 
-          ? `${video.videoUrl}&_t=${Date.now()}` 
-          : `${video.videoUrl}?_t=${Date.now()}`;
-        
-        videoRef.current.src = timestampedUrl;
-        videoRef.current.load();
-        
-        // 顺便标记为已预加载
+  // 当用户悬停在视频卡片上3秒后才预加载视频，而不是立即预加载
+  const handleMouseEnter = () => {
+    if (hasHovered) return; // 如果已经悬停过，不再触发预加载
+    
+    // 使用超过3秒悬停才启动预加载机制
+    const hoverTimer = setTimeout(() => {
+      if (
+        video.videoUrl.includes('qiniucs.com') || 
+        video.videoUrl.includes('sabkt.gdipper.com') || 
+        video.videoUrl.includes('myqcloud.com') ||
+        video.videoUrl.endsWith('.mp4') || 
+        video.videoUrl.endsWith('.webm')
+      ) {
+        console.log(`用户长时间悬停在视频 ${video.title} 上，开始预加载...`);
         preloadVideo(video.videoUrl);
+        setHasHovered(true); // 标记为已悬停预加载过
       }
-    }
-  }, [dialogOpen, isDirectVideo, isBilibiliVideo, getPreloadedElement, preloadVideo, video.title, video.videoUrl]);
-  
-  // 点击播放按钮处理
-  const handlePlayClick = useCallback(() => {
-    console.log(`点击播放: ${video.title}`);
-    setDialogOpen(true);
+    }, 3000); // 3秒后才预加载
     
-    // 如果是直接视频且未缓存，则尝试预加载
-    if (isDirectVideo && !isVideoCached(video.videoUrl)) {
-      preloadVideo(video.videoUrl);
-    }
-  }, [isDirectVideo, isVideoCached, preloadVideo, video.title, video.videoUrl]);
-  
-  // 对话框关闭时暂停视频
-  const handleDialogClose = useCallback(() => {
-    setDialogOpen(false);
-    setIsPlaying(false);
-    
-    // 如果有视频元素，暂停它
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
-  }, []);
-  
-  // 处理视频加载错误
-  const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.error(`视频加载失败: ${video.title}`, e);
-    setLoadError(true);
-    
-    // 尝试使用直接URL（不带时间戳）重新加载
-    if (videoRef.current && videoRef.current.src.includes('_t=')) {
-      console.log(`尝试使用原始URL重新加载: ${video.title}`);
-      videoRef.current.src = video.videoUrl;
-      videoRef.current.load();
-    }
-  }, [video.title, video.videoUrl]);
+    // 当鼠标移开时清除定时器
+    return () => clearTimeout(hoverTimer);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
+      onMouseEnter={handleMouseEnter} // 当鼠标悬停时预加载视频
     >
       <Card className="overflow-hidden bg-card/80 backdrop-blur-sm transition-all hover:shadow-md hover:shadow-bl-blue/10">
         <CardHeader className="pb-2">
@@ -799,19 +628,15 @@ function VideoCard({ video, index }: VideoCardProps) {
           <CardDescription>{video.description}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog>
             <DialogTrigger asChild>
-              <div 
-                className="relative w-full cursor-pointer overflow-hidden transition-all hover:opacity-90"
-                onClick={handlePlayClick}
-              >
+              <div className="relative w-full cursor-pointer overflow-hidden transition-all hover:opacity-90">
                 <AspectRatio ratio={16 / 9}>
                   <Image
                     src={video.thumbnail}
                     alt={video.title}
                     fill
                     className="object-cover"
-                    loading="lazy" // 使用懒加载减少缩略图流量
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity hover:opacity-100">
                     <Button variant="outline" className="border-white bg-transparent text-white hover:bg-white/20">
@@ -821,61 +646,34 @@ function VideoCard({ video, index }: VideoCardProps) {
                 </AspectRatio>
               </div>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl" onEscapeKeyDown={handleDialogClose} onInteractOutside={handleDialogClose}>
+            <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>{video.title || "Video Player"}</DialogTitle>
                 <DialogDescription>{video.description}</DialogDescription>
               </DialogHeader>
               <div className="aspect-video">
-                {isDirectVideo ? (
-                  <>
-                    {loadError ? (
-                      <div className="flex h-full w-full items-center justify-center bg-black/80 text-white">
-                        <div className="text-center">
-                          <p className="mb-4">视频加载失败，请尝试刷新页面或稍后再试</p>
-                          <Button 
-                            variant="outline" 
-                            className="border-white bg-transparent text-white hover:bg-white/20"
-                            onClick={() => {
-                              // 重置错误状态
-                              setLoadError(false);
-                              // 尝试重新加载
-                              if (videoRef.current) {
-                                videoRef.current.load();
-                              }
-                            }}
-                          >
-                            重试
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        controls
-                        controlsList="nodownload"
-                        onContextMenu={(e) => e.preventDefault()}
-                        className="h-full w-full"
-                        poster={video.thumbnail}
-                        crossOrigin="anonymous"
-                        playsInline
-                        onError={handleVideoError}
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                      >
-                        <track kind="captions" src="" label="Chinese" />
-                        抱歉，您的浏览器不支持HTML5视频。
-                      </video>
-                    )}
-                  </>
+                {(video.videoUrl.includes('qiniucs.com') || 
+                 video.videoUrl.includes('sabkt.gdipper.com') || 
+                 video.videoUrl.includes('myqcloud.com') ||
+                 video.videoUrl.endsWith('.mp4') || 
+                 video.videoUrl.endsWith('.webm'))? (
+                  <video
+                    src={video.videoUrl}
+                    controls
+                    controlsList="nodownload"
+                    onContextMenu={(e) => e.preventDefault()}
+                    preload="metadata" // 改为只预加载元数据，而不是整个视频
+                    className="h-full w-full"
+                    poster={video.thumbnail}
+                    crossOrigin="anonymous"
+                  />
                 ) : video.videoUrl.includes('bilibili.com') ? (
                   <iframe
                     src={`//player.bilibili.com/player.html?${new URLSearchParams({
                       bvid: video.videoUrl.match(/video\/(BV\w+)/)?.[1] || '',
                       page: '1',
                       high_quality: '1',
-                      // 如果对话框打开，则自动播放
-                      autoplay: dialogOpen ? '1' : '0',
+                      autoplay: '0',
                       danmaku: '0'
                     })}`}
                     className="w-full h-full border-none"
@@ -889,7 +687,7 @@ function VideoCard({ video, index }: VideoCardProps) {
                 ) : (
                   <iframe
                     src={video.videoUrl}
-                    className="w-full h-full"
+                    className="h-full w-full"
                     allowFullScreen
                     title={video.title}
                     frameBorder="0"
@@ -902,12 +700,6 @@ function VideoCard({ video, index }: VideoCardProps) {
         <CardFooter className="flex justify-between pt-4">
           <span className="inline-block rounded-full bg-bl-blue-dark/40 px-3 py-1 text-xs font-medium uppercase text-bl-blue-light">
             {video.category}
-          </span>
-          {/* 显示视频来源和状态 - 更准确的状态描述 */}
-          <span className="text-xs text-muted-foreground">
-            {isBilibiliVideo ? "Bilibili" : (
-              isVideoCached(video.videoUrl) ? "点击播放" : "COS"
-            )}
           </span>
         </CardFooter>
       </Card>
