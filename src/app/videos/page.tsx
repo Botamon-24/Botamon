@@ -96,7 +96,7 @@ function useVideoPreloader() {
     hasStartedPreloading.current = true;
     
     // 降低预加载数量从10个变为最多3个
-    const maxPreloadCount = 1;
+    const maxPreloadCount = 3;
     console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
     // 筛选出直接视频URL并截取前count个
