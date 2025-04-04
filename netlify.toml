@@ -1,11 +1,10 @@
-# 保留您原有的配置
 [images]
   remote_images = [
     "https://ext\\.same-assets\\.com/.*"
   ]
 
 [build]
-  command = "DISABLE_ESLINT_PLUGIN=true bun run build"
+  command = "bun run build"
   publish = ".next"
 
 [build.environment]
@@ -18,46 +17,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-
-# 新增：缓存控制设置
-# 全局基本缓存设置
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Cache-Control = "public, max-age=604800" # 缓存一周
-
-# 静态资源长期缓存
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable" # 缓存一年，不检查更新
-
-# 针对视频文件的专门缓存设置
-[[headers]]
-  for = "/*.mp4"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000" # 缓存一年
-    Access-Control-Allow-Origin = "*" # 允许跨域访问
-    Content-Disposition = "inline" # 浏览器内播放而非下载
-
-[[headers]]
-  for = "/*.webm"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000" # 缓存一年
-    Access-Control-Allow-Origin = "*" # 允许跨域访问
-    Content-Disposition = "inline" # 浏览器内播放而非下载
-
-# 图片缓存
-[[headers]]
-  for = "/thumbnails/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000" # 缓存一年
-    Access-Control-Allow-Origin = "*" # 允许跨域访问
-
-# 针对腾讯云链接的特殊处理
-[[headers]]
-  for = "/api/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*" # 允许跨域访问
-    Access-Control-Allow-Methods = "GET, HEAD, OPTIONS" # 允许的HTTP方法
-    Access-Control-Allow-Headers = "*" # 允许所有请求头
