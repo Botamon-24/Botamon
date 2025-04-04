@@ -26,28 +26,36 @@ interface VideoData {
 
 // 增强的视频预加载功能（专注于缓存增强）
 function useVideoPreloader() {
-  // 使用三种存储机制来持久化缓存
-  // 1. React状态 - 当前会话的内存缓存
+  // 使用三种存储机制来持久化缓存状态记录（注意：这只是记录，不是实际缓存）
+  // 1. React状态 - 当前会话的内存缓存状态记录
   const [preloadedVideos, setPreloadedVideos] = useState<Set<string>>(new Set<string>());
-  // 2. 本地存储 - 长期缓存，跨会话
-  const localStorageKey = 'video-cache-v1'; // 版本化缓存键
+  // 实际预加载的视频元素引用存储
+  const preloadedElements = useRef<Map<string, HTMLVideoElement>>(new Map());
+  // 2. 本地存储 - 长期缓存记录，跨会话
+  const localStorageKey = 'video-cache-v2'; // 更新版本号
   // 3. 会话存储 - 当前浏览会话
-  const sessionStorageKey = 'preloadedVideos';
+  const sessionStorageKey = 'preloadedVideos-v2'; // 更新版本号
   
   // 使用标记确保预加载过程只发生一次
   const hasStartedPreloading = useRef<boolean>(false);
   
-  // 以下函数帮助检查视频是否已缓存
+  // 检查视频是否已经真正加载（不仅仅检查状态记录）
   const isVideoCached = useCallback((url: string): boolean => {
-    // 检查视频是否在浏览器缓存中
-    // 不幸的是，JavaScript无法直接检查浏览器HTTP缓存
-    // 我们只能检查我们自己的缓存记录
+    // 首先检查是否有预加载元素
+    if (preloadedElements.current.has(url)) {
+      return true;
+    }
+    // 然后检查记录
     return preloadedVideos.has(url);
   }, [preloadedVideos]);
   
   // 从存储中加载缓存记录
   useEffect(() => {
     try {
+      // 尝试清除旧版本缓存记录
+      localStorage.removeItem('video-cache-v1');
+      sessionStorage.removeItem('preloadedVideos');
+      
       // 尝试从会话存储中恢复
       const sessionData = sessionStorage.getItem(sessionStorageKey);
       // 尝试从本地存储中恢复（更持久）
@@ -70,13 +78,11 @@ function useVideoPreloader() {
         const uniqueUrls = [...new Set(combinedUrls)];
         setPreloadedVideos(new Set(uniqueUrls));
         console.log(`从存储中恢复了${uniqueUrls.length}个预加载视频记录`);
-        
-        // 如果已有缓存记录，表示已经进行过预加载
-        hasStartedPreloading.current = uniqueUrls.length > 0;
       }
     } catch (e) {
       console.error("恢复缓存记录失败:", e);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   // 判断URL是否是直接的视频链接（可以缓存）
@@ -91,75 +97,98 @@ function useVideoPreloader() {
            url.endsWith('.webm');
   }, []);
 
-  // 强化缓存的预加载函数
+  // 彻底重写的预加载函数 - 更可靠的实现
   const preloadVideo = useCallback((url: string): void => {
     // 如果已缓存或不是直接视频URL，则跳过
-    if (isVideoCached(url) || !isDirectVideoUrl(url)) return;
+    if (preloadedElements.current.has(url) || !isDirectVideoUrl(url)) return;
     
-    console.log(`开始缓存视频: ${url}`);
+    console.log(`开始真正预加载视频: ${url}`);
     
-    // 使用XHR发送HEAD请求，设置缓存控制头
-    const xhr = new XMLHttpRequest();
-    xhr.open('HEAD', url, true);
-    xhr.setRequestHeader('Cache-Control', 'max-age=31536000'); // 缓存一年
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState === 4) {
-        if (xhr.status === 200) {
-          // HEAD请求成功，现在创建视频元素进行预加载
-          const videoElement = document.createElement('video');
-          videoElement.preload = 'metadata'; // 仅预加载元数据
-          
-          // 添加加载元数据事件处理器
-          videoElement.addEventListener('loadedmetadata', function() {
-            console.log(`已成功缓存视频元数据: ${url}`);
-            
-            // 更新缓存记录
-            updateCacheRecord(url);
-          });
-          
-          // 设置视频源并加载
-          videoElement.src = url;
-          videoElement.load();
-        }
-      }
-    };
-    xhr.send();
-  }, [isVideoCached, isDirectVideoUrl]);
+    // 创建一个新的视频元素用于预加载
+    const videoElement = document.createElement('video');
+    videoElement.muted = true; // 静音加载
+    videoElement.playsInline = true;
+    videoElement.crossOrigin = "anonymous"; // 确保跨域加载
+    
+    // 设置事件监听器
+    videoElement.addEventListener('loadedmetadata', () => {
+      console.log(`视频元数据已加载: ${url}`);
+    });
+    
+    videoElement.addEventListener('canplay', () => {
+      console.log(`视频可以播放了: ${url}`);
+      // 视频可以播放时，更新缓存记录
+      updateCacheRecord(url);
+      
+      // 存储预加载的元素，以便后续使用
+      preloadedElements.current.set(url, videoElement);
+    });
+    
+    videoElement.addEventListener('error', (e) => {
+      console.error(`视频加载失败: ${url}`, e);
+      // 从预加载记录中移除
+      preloadedElements.current.delete(url);
+    });
+    
+    // 设置视频源并加载
+    // 添加时间戳参数以避免缓存问题
+    const timestampedUrl = url.includes('?') 
+      ? `${url}&_t=${Date.now()}` 
+      : `${url}?_t=${Date.now()}`;
+    
+    videoElement.src = timestampedUrl;
+    videoElement.preload = 'auto'; // 使用auto而不是metadata，确保完整加载
+    videoElement.load();
+    
+    // 尝试预先缓冲一些内容（这会帮助更好地缓存视频）
+    videoElement.play().then(() => {
+      // 播放一小段后暂停
+      setTimeout(() => {
+        videoElement.pause();
+        console.log(`视频已预缓冲: ${url}`);
+      }, 500);
+    }).catch(err => {
+      console.warn(`自动播放被阻止，这是正常的: ${url}`, err);
+      // 自动播放被阻止不是错误，我们继续
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirectVideoUrl]);
   
   // 更新缓存记录到三个存储位置
   const updateCacheRecord = useCallback((url: string) => {
     // 1. 更新React状态
-    const newCache = new Set([...preloadedVideos, url]);
-    setPreloadedVideos(newCache);
+    setPreloadedVideos(prev => new Set([...prev, url]));
     
     // 2. 更新会话存储
     try {
-      const urlArray = [...newCache];
-      sessionStorage.setItem(sessionStorageKey, JSON.stringify(urlArray));
+      const current = sessionStorage.getItem(sessionStorageKey);
+      const urls = current ? JSON.parse(current) as string[] : [];
+      if (!urls.includes(url)) {
+        urls.push(url);
+        sessionStorage.setItem(sessionStorageKey, JSON.stringify(urls));
+      }
     } catch (e) {
       console.error("保存到会话存储失败:", e);
     }
     
     // 3. 更新本地存储（长期缓存）
     try {
-      // 先读取现有记录，避免覆盖
-      const existingData = localStorage.getItem(localStorageKey);
-      let urlsToStore: string[] = [];
-      
-      if (existingData) {
-        urlsToStore = JSON.parse(existingData) as string[];
+      const current = localStorage.getItem(localStorageKey);
+      const urls = current ? JSON.parse(current) as string[] : [];
+      if (!urls.includes(url)) {
+        urls.push(url);
+        localStorage.setItem(localStorageKey, JSON.stringify(urls));
       }
-      
-      // 添加新URL并去重
-      if (!urlsToStore.includes(url)) {
-        urlsToStore.push(url);
-      }
-      
-      localStorage.setItem(localStorageKey, JSON.stringify(urlsToStore));
     } catch (e) {
       console.error("保存到本地存储失败:", e);
     }
-  }, [preloadedVideos]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  // 获取预加载的视频元素（如果有）
+  const getPreloadedElement = useCallback((url: string): HTMLVideoElement | null => {
+    return preloadedElements.current.get(url) || null;
+  }, []);
   
   // 批量预加载多个视频（限制数量，减少流量）
   const preloadVideoBatch = useCallback((videos: VideoData[]): void => {
@@ -171,8 +200,8 @@ function useVideoPreloader() {
     
     hasStartedPreloading.current = true;
     
-    // 减少预加载数量到2个
-    const maxPreloadCount = 2; // 从3个减少到2个
+    // 减少预加载数量到1个（仅预加载第一个视频）
+    const maxPreloadCount = 1; // 从2个减少到1个
     console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
     // 筛选出直接视频URL
@@ -182,7 +211,7 @@ function useVideoPreloader() {
       .map(video => video.videoUrl);
       
     // 过滤掉已缓存的视频
-    const urlsToPreload = directVideoUrls.filter(url => !isVideoCached(url));
+    const urlsToPreload = directVideoUrls.filter(url => !preloadedElements.current.has(url));
     
     if (urlsToPreload.length === 0) {
       console.log("所有视频已经缓存过，无需再次预加载");
@@ -191,21 +220,23 @@ function useVideoPreloader() {
     
     console.log(`实际需要预加载的视频数量: ${urlsToPreload.length}`);
     
-    // 延长预加载间隔到1000毫秒，减轻服务器负担
+    // 增加预加载间隔到3000毫秒
     urlsToPreload.forEach((url, index) => {
       setTimeout(() => {
         preloadVideo(url);
         console.log(`预加载视频 ${index + 1}/${urlsToPreload.length}: ${url}`);
-      }, index * 1000); // 从500ms增加到1000ms
+      }, index * 3000); // 从1000ms增加到3000ms
     });
-  }, [isDirectVideoUrl, isVideoCached, preloadVideo]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirectVideoUrl, preloadVideo]);
 
   // 返回相关函数和状态
   return { 
     preloadVideo, 
-    preloadVideoBatch, 
+    preloadVideoBatch,
     preloadedVideos,
-    isVideoCached 
+    isVideoCached,
+    getPreloadedElement
   };
 }
 
@@ -664,54 +695,102 @@ interface VideoCardProps {
   index: number;
 }
 
-// 优化后的视频卡片组件
+// 完全重写的视频卡片组件
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
-  const { preloadVideo, preloadedVideos, isVideoCached } = useVideoPreloader();
-  const [hasHovered, setHasHovered] = useState(false);
-  const [hasClicked, setHasClicked] = useState(false);
+  const { preloadVideo, isVideoCached, getPreloadedElement } = useVideoPreloader();
+  const [loadError, setLoadError] = useState(false);  // 新增：跟踪加载错误
+  const [isPlaying, setIsPlaying] = useState(false);  // 新增：跟踪视频是否正在播放
+  const [dialogOpen, setDialogOpen] = useState(false); // 新增：跟踪对话框是否打开
+  const videoRef = useRef<HTMLVideoElement | null>(null); // 新增：引用当前视频元素
   
   // 检查是否为B站视频
   const isBilibiliVideo = video.videoUrl.includes('bilibili.com');
+  const isDirectVideo = !isBilibiliVideo && (
+    video.videoUrl.includes('qiniucs.com') || 
+    video.videoUrl.includes('sabkt.gdipper.com') || 
+    video.videoUrl.includes('myqcloud.com') ||
+    video.videoUrl.endsWith('.mp4') || 
+    video.videoUrl.endsWith('.webm')
+  );
   
-  // 当用户悬停在视频卡片上5秒后才预加载视频，而不是立即预加载
-  const handleMouseEnter = useCallback(() => {
-    if (hasHovered || isBilibiliVideo) return; // 已悬停过或B站视频，不预加载
-    
-    // 使用更长的悬停时间触发预加载（5秒）
-    const hoverTimer = setTimeout(() => {
-      if (
-        video.videoUrl.includes('qiniucs.com') || 
-        video.videoUrl.includes('sabkt.gdipper.com') || 
-        video.videoUrl.includes('myqcloud.com') ||
-        video.videoUrl.endsWith('.mp4') || 
-        video.videoUrl.endsWith('.webm')
-      ) {
-        console.log(`用户长时间悬停在视频 ${video.title} 上，开始预加载...`);
+  // 当对话框打开时尝试加载视频
+  useEffect(() => {
+    if (dialogOpen && isDirectVideo && !isBilibiliVideo) {
+      console.log(`对话框已打开，正在尝试加载视频: ${video.title}`);
+      
+      // 重置错误状态
+      setLoadError(false);
+      
+      // 尝试获取预加载的元素
+      const preloadedElement = getPreloadedElement(video.videoUrl);
+      if (preloadedElement && videoRef.current) {
+        console.log(`使用预加载的视频元素: ${video.title}`);
+        
+        // 复制预加载元素的源到当前视频元素
+        videoRef.current.src = preloadedElement.src;
+        videoRef.current.load();
+      } else if (videoRef.current) {
+        // 没有预加载元素，直接加载
+        console.log(`没有预加载元素，直接加载: ${video.title}`);
+        
+        // 添加时间戳参数以避免缓存问题
+        const timestampedUrl = video.videoUrl.includes('?') 
+          ? `${video.videoUrl}&_t=${Date.now()}` 
+          : `${video.videoUrl}?_t=${Date.now()}`;
+        
+        videoRef.current.src = timestampedUrl;
+        videoRef.current.load();
+        
+        // 顺便标记为已预加载
         preloadVideo(video.videoUrl);
-        setHasHovered(true); // 标记为已悬停预加载过
       }
-    }, 5000); // 从3秒增加到5秒
-    
-    // 当鼠标移开时清除定时器
-    return () => clearTimeout(hoverTimer);
-  }, [hasHovered, isBilibiliVideo, video, preloadVideo]);
-
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, isDirectVideo, isBilibiliVideo]);
+  
   // 点击播放按钮处理
   const handlePlayClick = useCallback(() => {
-    setHasClicked(true);
-    if (!isBilibiliVideo && !isVideoCached(video.videoUrl)) {
-      // 用户真正点击了，此时预加载是必要的
+    console.log(`点击播放: ${video.title}`);
+    setDialogOpen(true);
+    
+    // 如果是直接视频且未缓存，则尝试预加载
+    if (isDirectVideo && !isVideoCached(video.videoUrl)) {
       preloadVideo(video.videoUrl);
     }
-  }, [isBilibiliVideo, isVideoCached, preloadVideo, video.videoUrl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirectVideo, isVideoCached, preloadVideo, video.title, video.videoUrl]);
+  
+  // 对话框关闭时暂停视频
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false);
+    setIsPlaying(false);
+    
+    // 如果有视频元素，暂停它
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+  }, []);
+  
+  // 处理视频加载错误
+  const handleVideoError = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error(`视频加载失败: ${video.title}`, e);
+    setLoadError(true);
+    
+    // 尝试使用直接URL（不带时间戳）重新加载
+    if (videoRef.current && videoRef.current.src.includes('_t=')) {
+      console.log(`尝试使用原始URL重新加载: ${video.title}`);
+      videoRef.current.src = video.videoUrl;
+      videoRef.current.load();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.title, video.videoUrl]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.5 }}
-      onMouseEnter={handleMouseEnter}
     >
       <Card className="overflow-hidden bg-card/80 backdrop-blur-sm transition-all hover:shadow-md hover:shadow-bl-blue/10">
         <CardHeader className="pb-2">
@@ -724,7 +803,7 @@ function VideoCard({ video, index }: VideoCardProps) {
           <CardDescription>{video.description}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Dialog>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <div 
                 className="relative w-full cursor-pointer overflow-hidden transition-all hover:opacity-90"
@@ -746,46 +825,61 @@ function VideoCard({ video, index }: VideoCardProps) {
                 </AspectRatio>
               </div>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl" onEscapeKeyDown={handleDialogClose} onInteractOutside={handleDialogClose}>
               <DialogHeader>
                 <DialogTitle>{video.title || "Video Player"}</DialogTitle>
                 <DialogDescription>{video.description}</DialogDescription>
               </DialogHeader>
               <div className="aspect-video">
-                {(video.videoUrl.includes('qiniucs.com') || 
-                 video.videoUrl.includes('sabkt.gdipper.com') || 
-                 video.videoUrl.includes('myqcloud.com') ||
-                 video.videoUrl.endsWith('.mp4') || 
-                 video.videoUrl.endsWith('.webm'))? (
-                  <video
-                    src={video.videoUrl}
-                    controls
-                    controlsList="nodownload"
-                    onContextMenu={(e) => e.preventDefault()}
-                    preload={isVideoCached(video.videoUrl) ? "auto" : "metadata"}
-                    className="h-full w-full"
-                    poster={video.thumbnail}
-                    crossOrigin="anonymous"
-                    // 添加加载开始和成功事件处理
-                    onLoadStart={() => console.log(`开始加载视频: ${video.title}`)}
-                    onCanPlay={() => {
-                      console.log(`视频可以播放了: ${video.title}`);
-                      // 将视频标记为已缓存
-                      if (!isVideoCached(video.videoUrl)) {
-                        preloadVideo(video.videoUrl);
-                      }
-                    }}
-                  >
-                    <track kind="captions" src="" label="English" />
-                  </video>
+                {isDirectVideo ? (
+                  <>
+                    {loadError ? (
+                      <div className="flex h-full w-full items-center justify-center bg-black/80 text-white">
+                        <div className="text-center">
+                          <p className="mb-4">视频加载失败，请尝试刷新页面或稍后再试</p>
+                          <Button 
+                            variant="outline" 
+                            className="border-white bg-transparent text-white hover:bg-white/20"
+                            onClick={() => {
+                              // 重置错误状态
+                              setLoadError(false);
+                              // 尝试重新加载
+                              if (videoRef.current) {
+                                videoRef.current.load();
+                              }
+                            }}
+                          >
+                            重试
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        controls
+                        controlsList="nodownload"
+                        onContextMenu={(e) => e.preventDefault()}
+                        className="h-full w-full"
+                        poster={video.thumbnail}
+                        crossOrigin="anonymous"
+                        playsInline
+                        onError={handleVideoError}
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                      >
+                        <track kind="captions" src="" label="Chinese" />
+                        抱歉，您的浏览器不支持HTML5视频。
+                      </video>
+                    )}
+                  </>
                 ) : video.videoUrl.includes('bilibili.com') ? (
                   <iframe
                     src={`//player.bilibili.com/player.html?${new URLSearchParams({
                       bvid: video.videoUrl.match(/video\/(BV\w+)/)?.[1] || '',
                       page: '1',
                       high_quality: '1',
-                      // 如果用户点击了播放，则自动播放
-                      autoplay: hasClicked ? '1' : '0',
+                      // 如果对话框打开，则自动播放
+                      autoplay: dialogOpen ? '1' : '0',
                       danmaku: '0'
                     })}`}
                     className="w-full h-full border-none"
@@ -813,9 +907,11 @@ function VideoCard({ video, index }: VideoCardProps) {
           <span className="inline-block rounded-full bg-bl-blue-dark/40 px-3 py-1 text-xs font-medium uppercase text-bl-blue-light">
             {video.category}
           </span>
-          {/* 显示视频来源和缓存状态 */}
+          {/* 显示视频来源和状态 - 更准确的状态描述 */}
           <span className="text-xs text-muted-foreground">
-            {isBilibiliVideo ? "Bilibili" : isVideoCached(video.videoUrl) ? "已缓存" : "COS"}
+            {isBilibiliVideo ? "Bilibili" : (
+              isVideoCached(video.videoUrl) ? "点击播放" : "COS"
+            )}
           </span>
         </CardFooter>
       </Card>

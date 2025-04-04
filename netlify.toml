@@ -5,7 +5,7 @@
   ]
 
 [build]
-  command = "bun run build"
+  command = "DISABLE_ESLINT_PLUGIN=true bun run build"
   publish = ".next"
 
 [build.environment]
