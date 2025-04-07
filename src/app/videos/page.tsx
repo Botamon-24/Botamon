@@ -71,6 +71,7 @@ function useVideoPreloader() {
     const videoElement = document.createElement('video');
     videoElement.preload = 'metadata'; // 仅预加载元数据，而不是整个视频
     videoElement.src = url;        
+    // 不设置 crossOrigin 属性，避免CORS问题
     videoElement.load();           
     
     // 将此视频URL添加到已预加载的集合中
@@ -85,7 +86,7 @@ function useVideoPreloader() {
     }
   };
 
-  // 批量预加载多个视频的函数 - 优化版本，只预加载前3个视频
+  // 批量预加载多个视频的函数 - 优化版本，只预加载前2个视频
   const preloadVideoBatch = (videos: VideoData[]): void => {
     // 确保只执行一次预加载
     if (hasStartedPreloading.current) {
@@ -95,8 +96,8 @@ function useVideoPreloader() {
     
     hasStartedPreloading.current = true;
     
-    // 降低预加载数量从10个变为最多3个
-    const maxPreloadCount = 3;
+    // 降低预加载数量从3个变为最多2个
+    const maxPreloadCount = 2;
     console.log(`开始预加载前${maxPreloadCount}个视频...`);
     
     // 筛选出直接视频URL并截取前count个
@@ -115,19 +116,18 @@ function useVideoPreloader() {
     
     console.log(`实际需要预加载的视频数量: ${urlsToPreload.length}`);
     
-    // 逐个预加载视频，每个视频间隔500毫秒（增加间隔以减轻网络负担）
+    // 逐个预加载视频，每个视频间隔1000毫秒（增加间隔以减轻网络负担）
     urlsToPreload.forEach((url, index) => {
       setTimeout(() => {
         preloadVideo(url);
         console.log(`预加载视频 ${index + 1}/${urlsToPreload.length}: ${url}`);
-      }, index * 500); // 将间隔从200ms增加到500ms
+      }, index * 1000); // 将间隔从500ms增加到1000ms
     });
   };
 
   // 返回预加载相关的函数和状态
   return { preloadVideo, preloadVideoBatch, preloadedVideos };
 }
-
 
 // 您可以在这里修改视频数据
 // 要替换视频：
@@ -496,13 +496,13 @@ export default function VideosPage() {
   // 使用预加载钩子
   const { preloadVideoBatch } = useVideoPreloader();
   
-  // 当页面加载后，延迟3秒再预加载前3个视频，避免与页面加载竞争资源
+  // 当页面加载后，延迟5秒再预加载前2个视频，避免与页面加载竞争资源
   useEffect(() => {
-    // 设置定时器，延迟3秒后再执行预加载
+    // 设置定时器，延迟5秒后再执行预加载
     const timer = setTimeout(() => {
-      console.log("页面加载完成3秒后，开始预加载视频...");
+      console.log("页面加载完成5秒后，开始预加载视频...");
       preloadVideoBatch(videosData);
-    }, 3000);
+    }, 5000); // 从3秒增加到5秒
     
     // 组件卸载时清除定时器
     return () => clearTimeout(timer);
@@ -581,25 +581,28 @@ interface VideoCardProps {
   index: number;
 }
 
-// 视频卡片组件 - 优化版本
+// 视频卡片组件 - 改进版
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
   const { preloadVideo, preloadedVideos } = useVideoPreloader();
   const [hasHovered, setHasHovered] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  
+  // 判断是否是腾讯云COS视频
+  const isTencentVideo = video.videoUrl.includes('myqcloud.com') || 
+                          video.videoUrl.includes('qiniucs.com') || 
+                          video.videoUrl.includes('sabkt.gdipper.com');
   
   // 当用户悬停在视频卡片上3秒后才预加载视频，而不是立即预加载
   const handleMouseEnter = () => {
     if (hasHovered) return; // 如果已经悬停过，不再触发预加载
     
+    // 降低预加载频率，只对前5个视频尝试预加载
+    if (index > 5) return;
+    
     // 使用超过3秒悬停才启动预加载机制
     const hoverTimer = setTimeout(() => {
-      if (
-        video.videoUrl.includes('qiniucs.com') || 
-        video.videoUrl.includes('sabkt.gdipper.com') || 
-        video.videoUrl.includes('myqcloud.com') ||
-        video.videoUrl.endsWith('.mp4') || 
-        video.videoUrl.endsWith('.webm')
-      ) {
+      if (isTencentVideo || video.videoUrl.endsWith('.mp4') || video.videoUrl.endsWith('.webm')) {
         console.log(`用户长时间悬停在视频 ${video.title} 上，开始预加载...`);
         preloadVideo(video.videoUrl);
         setHasHovered(true); // 标记为已悬停预加载过
@@ -608,6 +611,12 @@ function VideoCard({ video, index }: VideoCardProps) {
     
     // 当鼠标移开时清除定时器
     return () => clearTimeout(hoverTimer);
+  };
+
+  // 处理视频加载错误
+  const handleVideoError = () => {
+    console.log(`视频加载失败: ${video.title}`);
+    setVideoError(true);
   };
 
   return (
@@ -652,21 +661,44 @@ function VideoCard({ video, index }: VideoCardProps) {
                 <DialogDescription>{video.description}</DialogDescription>
               </DialogHeader>
               <div className="aspect-video">
-                {(video.videoUrl.includes('qiniucs.com') || 
-                 video.videoUrl.includes('sabkt.gdipper.com') || 
-                 video.videoUrl.includes('myqcloud.com') ||
-                 video.videoUrl.endsWith('.mp4') || 
-                 video.videoUrl.endsWith('.webm'))? (
-                  <video
-                    src={video.videoUrl}
-                    controls
-                    controlsList="nodownload"
-                    onContextMenu={(e) => e.preventDefault()}
-                    preload="metadata" // 改为只预加载元数据，而不是整个视频
-                    className="h-full w-full"
-                    poster={video.thumbnail}
-                    crossOrigin="anonymous"
-                  />
+                {(isTencentVideo || video.videoUrl.endsWith('.mp4') || video.videoUrl.endsWith('.webm'))? (
+                  <>
+                    {videoError ? (
+                      <div className="flex h-full w-full flex-col items-center justify-center bg-black/10 p-4">
+                        <p className="mb-4 text-center text-red-500">视频加载失败，可能是跨域限制导致</p>
+                        <a 
+                          href={video.videoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                        >
+                          在新窗口中打开视频
+                        </a>
+                      </div>
+                    ) : (
+                      <video
+                        src={video.videoUrl}
+                        controls
+                        controlsList="nodownload"
+                        onContextMenu={(e) => e.preventDefault()}
+                        preload="metadata" // 改为只预加载元数据，而不是整个视频
+                        className="h-full w-full"
+                        poster={video.thumbnail}
+                        onError={handleVideoError}
+                        // 移除 crossOrigin 属性，可能导致跨域问题
+                      />
+                    )}
+                    <div className="mt-2 flex justify-center">
+                      <a 
+                        href={video.videoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-500 hover:underline"
+                      >
+                        视频无法播放？点击这里在新窗口打开
+                      </a>
+                    </div>
+                  </>
                 ) : video.videoUrl.includes('bilibili.com') ? (
                   <iframe
                     src={`//player.bilibili.com/player.html?${new URLSearchParams({
