@@ -581,12 +581,11 @@ interface VideoCardProps {
   index: number;
 }
 
-// 视频卡片组件 - 改进版
+// 视频卡片组件 - 简化版
 function VideoCard({ video, index }: VideoCardProps) {
   // 使用预加载钩子
   const { preloadVideo, preloadedVideos } = useVideoPreloader();
   const [hasHovered, setHasHovered] = useState(false);
-  const [videoError, setVideoError] = useState(false);
   
   // 判断是否是腾讯云COS视频
   const isTencentVideo = video.videoUrl.includes('myqcloud.com') || 
@@ -611,12 +610,6 @@ function VideoCard({ video, index }: VideoCardProps) {
     
     // 当鼠标移开时清除定时器
     return () => clearTimeout(hoverTimer);
-  };
-
-  // 处理视频加载错误
-  const handleVideoError = () => {
-    console.log(`视频加载失败: ${video.title}`);
-    setVideoError(true);
   };
 
   return (
@@ -655,50 +648,22 @@ function VideoCard({ video, index }: VideoCardProps) {
                 </AspectRatio>
               </div>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
               <DialogHeader>
                 <DialogTitle>{video.title || "Video Player"}</DialogTitle>
                 <DialogDescription>{video.description}</DialogDescription>
               </DialogHeader>
-              <div className="aspect-video">
+              <div className="aspect-video w-full">
                 {(isTencentVideo || video.videoUrl.endsWith('.mp4') || video.videoUrl.endsWith('.webm'))? (
-                  <>
-                    {videoError ? (
-                      <div className="flex h-full w-full flex-col items-center justify-center bg-black/10 p-4">
-                        <p className="mb-4 text-center text-red-500">视频加载失败，可能是跨域限制导致</p>
-                        <a 
-                          href={video.videoUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                        >
-                          在新窗口中打开视频
-                        </a>
-                      </div>
-                    ) : (
-                      <video
-                        src={video.videoUrl}
-                        controls
-                        controlsList="nodownload"
-                        onContextMenu={(e) => e.preventDefault()}
-                        preload="metadata" // 改为只预加载元数据，而不是整个视频
-                        className="h-full w-full"
-                        poster={video.thumbnail}
-                        onError={handleVideoError}
-                        // 移除 crossOrigin 属性，可能导致跨域问题
-                      />
-                    )}
-                    <div className="mt-2 flex justify-center">
-                      <a 
-                        href={video.videoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-500 hover:underline"
-                      >
-                        视频无法播放？点击这里在新窗口打开
-                      </a>
-                    </div>
-                  </>
+                  <video
+                    src={video.videoUrl}
+                    controls
+                    controlsList="nodownload"
+                    onContextMenu={(e) => e.preventDefault()}
+                    preload="metadata" // 仅预加载元数据
+                    className="h-full w-full"
+                    poster={video.thumbnail}
+                  />
                 ) : video.videoUrl.includes('bilibili.com') ? (
                   <iframe
                     src={`//player.bilibili.com/player.html?${new URLSearchParams({
