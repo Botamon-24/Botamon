@@ -160,7 +160,7 @@ const videosData: VideoData[] = [
     description: "王者荣耀女队 24夺冠纪录片",
     date: "",
     thumbnail: "/thumbnails/05.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E7%8E%8B%E8%80%85%E8%8D%A3%E8%80%80%E5%A5%B3%E9%98%9F%2F%E7%8E%8B%E8%80%85%E8%8D%A3%E8%80%80%E5%A5%B3%E9%98%9F%20%E5%A4%BA%E5%86%A0%E7%BA%AA%E5%BD%95%E7%89%87%202024.1.17%20B.mp4", // 示例链接，可替换
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2F%E7%8E%8B%E8%80%85%E8%8D%A3%E8%80%80%E5%A5%B3%E9%98%9F%2F%E7%8E%8B%E8%80%85%E8%8D%A3%E8%80%80%E5%A5%B3%E9%98%9F%20%E5%A4%BA%E5%86%A0%E7%BA%AA%E5%BD%95%E7%89%87%202024.1.17%20B2.mp4", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
@@ -169,7 +169,7 @@ const videosData: VideoData[] = [
     description: "Player Story | JDG 369",
     date: "",
     thumbnail: "/thumbnails/03.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%9C%88%E9%80%80%E6%96%87%E5%8C%96%2F%E8%8B%B1%E6%96%87%E6%B5%81%E9%80%89%E6%89%8B%20369%20LPL%20YouTube%2F369%20%E9%80%89%E6%89%8B%E4%BB%8B%E7%BB%8D%20Bco%20B.mp4", // 示例链接，可替换
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%9C%88%E9%80%80%E6%96%87%E5%8C%96%2F%E8%8B%B1%E6%96%87%E6%B5%81%E9%80%89%E6%89%8B%20369%20LPL%20YouTube%2F369%20%E9%80%89%E6%89%8B%E4%BB%8B%E7%BB%8D%20Bco%20B2.mp4", // 示例链接，可替换
     category: "Yuetui Productions"
   },
   {
@@ -207,7 +207,7 @@ const videosData: VideoData[] = [
     description: "TE LOLM 晋级之路",
     date: "",
     thumbnail: "/thumbnails/08.jpg",
-    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2FLOL%E6%89%8B%E6%B8%B8%2FTE%20LOLM%20%E6%99%8B%E7%BA%A7%E4%B9%8B%E8%B7%AF%20B.mp4", // 示例链接，可替换
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%BA%AF%E5%BF%83%E6%96%87%E5%8C%96%2FLOL%E6%89%8B%E6%B8%B8%2FTE%20LOLM%20%E6%99%8B%E7%BA%A7%E4%B9%8B%E8%B7%AFB2.mp4", // 示例链接，可替换
     category: "Trace Esports"
   },
   {
