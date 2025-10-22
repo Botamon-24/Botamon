@@ -39,12 +39,13 @@ export default function AboutPage() {
         >
           <h2 className="mb-6 text-3xl font-semibold text-bl-blue-light">Hello, I'm Botamon (ZXF) </h2>
           <p className="mb-4 text-lg">
-          全流程制作能力：精通视频策划、剪辑及后期全流程，熟练使用 Premiere Pro、Photoshop、After Effects、Audition、Media Encoder、Final Cut Pro、Adobe Illustrator、Topaz Gigapixel AI，剪映，掌握 Blender 3D制作；
-          <br /><br />技术拓展：熟悉 HTML+CSS+JS 前端开发（配合Visual Studio Code）；运用 ChatGPT/DeepSeek 辅助内容优化与热点分析.
+          全流程制作能力：精通视频策划、剪辑及后期全流程，熟练使用 Premiere Pro、Photoshop、After Effects、Audition、Media Encoder、Final Cut Pro、Adobe Illustrator、剪映，掌握 Blender 3D制作；
+          <br /><br />技术拓展：熟悉 HTML+CSS+JS 前端开发（配合Visual Studio Code）；运用 ChatGPT/DeepSeek 辅助内容优化与热点分析；运用ComfyUI 生成文生图，图生图，
+          对运用checkpoints二次元IL大模型,LORA模型，通过精准提示词生成符合需求的视觉素材，对生成内容进行筛选优化。Topaz Gigapixel AI图文放大。
           </p>
           <p className="mb-8 text-lg">
           爆款内容经验：累计制作 600+条短视频（200+条来自“一口金克酥”，其余来自电竞俱乐部项目），抖音/快手/B站综合爆款占比超20%（‘一口金克酥’全平台10w播放量以上内容占比35%），擅长数据驱动型运营；
-          <br /><br />游戏项目后期全栈经验：熟悉 腾讯系（无畏契约、LOLM、王者荣耀、LOL）、拳头官方（LPL赛事）、网易赛事系（永劫无间、第五人格） 项目规范与审核标准；
+          <br /><br />游戏项目后期全栈经验：熟悉 腾讯系（无畏契约、LOLM、王者荣耀、LOL、三角洲）、拳头官方（LPL赛事）、网易赛事系（永劫无间、第五人格） 项目规范与审核标准；
           <br /><br />团队赋能：主导新人培训与流程标准化，提升团队协作效率.
           </p>
             {/* 暂时不展示 */}

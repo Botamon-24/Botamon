@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 
 // 定义视频分类类型
-type VideoCategory = "Trace Esports" | "Yuetui Productions" | "Botamon" | "Botamon 3D";
+type VideoCategory = "Trace Esports" | "Yuetui Productions" | "BiXin" | "Botamon";
 
 // 视频数据接口
 interface VideoData {
@@ -136,6 +136,114 @@ function useVideoPreloader() {
 // 3. 将 videoUrl 替换为您的YouTube、Vimeo 或其他视频嵌入链接
 // 4. 根据视频类型选择合适的 category
 const videosData: VideoData[] = [
+    {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 绾绾",
+    date: "",
+    thumbnail: "/thumbnails/50.jpg",
+    videoUrl: "https://v.douyin.com/1e-F-jlDdUg", // 示例链接，可替换
+    category: "BiXin"
+  },
+    {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 绾绾",
+    date: "",
+    thumbnail: "/thumbnails/49.jpg",
+    videoUrl: "https://v.douyin.com/WLFbKOnfM6c", // 示例链接，可替换
+    category: "BiXin"
+  },
+   {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 绾绾",
+    date: "",
+    thumbnail: "/thumbnails/48.jpg",
+    videoUrl: "https://v.douyin.com/KTklf1T0jkg", // 示例链接，可替换
+    category: "BiXin"
+  },
+  {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 洛洛",
+    date: "",
+    thumbnail: "/thumbnails/47.jpg",
+    videoUrl: "https://v.douyin.com/hsJiy6xIpTs", // 示例链接，可替换
+    category: "BiXin"
+  },
+  {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 洛洛",
+    date: "",
+    thumbnail: "/thumbnails/46.jpg",
+    videoUrl: "https://v.douyin.com/2W96uXC-yiM", // 示例链接，可替换
+    category: "BiXin"
+  },
+   {
+    id: "",
+    title: "Honor of Kings",
+    description: "KOL 洛洛",
+    date: "",
+    thumbnail: "/thumbnails/45.jpg",
+    videoUrl: "https://v.douyin.com/3Ibc-oGBBZo", // 示例链接，可替换
+    category: "BiXin"
+  },
+     {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 923",
+    date: "",
+    thumbnail: "/thumbnails/44.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0625%20%E4%B8%8B%E5%8D%88%EF%BC%88923%EF%BC%89%E5%BC%A0%2B7~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
+   {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 923",
+    date: "",
+    thumbnail: "/thumbnails/43.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0617%20%E4%B8%8B%E5%8D%88%EF%BC%88923%EF%BC%89%E7%BB%88%E7%89%88~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
+  {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 923",
+    date: "",
+    thumbnail: "/thumbnails/42.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0609%20%E4%B8%8B%E5%8D%88%EF%BC%88923%EF%BC%89%E5%AD%99%20%E7%BB%88%E7%89%88~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
+    {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 吱吱大王",
+    date: "",
+    thumbnail: "/thumbnails/41.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0731%20%E4%B8%8B%E5%8D%88%EF%BC%88%E5%90%B1%E5%90%B1%EF%BC%89%E5%AD%99%20%E6%8A%96%E9%9F%B3%E7%89%88~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
+  {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 吱吱大王",
+    date: "",
+    thumbnail: "/thumbnails/40.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0715%20%E4%B8%8B%E5%8D%88%EF%BC%88%E5%90%B1%E5%90%B1%EF%BC%89%E5%AD%99%2B11~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
+   {
+    id: "",
+    title: "Delta Force",
+    description: "KOL 吱吱大王",
+    date: "",
+    thumbnail: "/thumbnails/39.webp",
+    videoUrl: "https://botamon24-1351813449.cos.ap-shanghai.myqcloud.com/%E6%AF%94%E5%BF%83app/%E5%90%B1%E5%90%B1%E5%A4%A7%E7%8E%8B%EF%BC%88%E4%B8%89%E8%A7%92%E6%B4%B2%EF%BC%89/25.0619%20%E4%B8%8B%E5%8D%88%EF%BC%88%E8%95%BE%E5%A8%9C%EF%BC%89%E5%BC%A0%20%E7%BB%88%E7%89%88~1.mp4", // 示例链接，可替换
+    category: "BiXin"
+  },
   {
     id: "",
     title: "Valorant",
@@ -538,8 +646,8 @@ export default function VideosPage() {
             <TabsTrigger value="all">All Videos</TabsTrigger>
             <TabsTrigger value="Trace Esports">Trace Esports</TabsTrigger>
             <TabsTrigger value="Yuetui Productions">Yuetui Productions</TabsTrigger>
+            <TabsTrigger value="BiXin">BiXin</TabsTrigger>
             <TabsTrigger value="Botamon">Botamon</TabsTrigger>
-            <TabsTrigger value="Botamon 3D">Botamon 3D</TabsTrigger>
           </TabsList>
         </div>
 
@@ -551,7 +659,7 @@ export default function VideosPage() {
           </div>
         </TabsContent>
 
-        {["Trace Esports", "Yuetui Productions", "Botamon", "Botamon 3D"].map((category) => (
+        {["Trace Esports", "Yuetui Productions", "BiXin", "Botamon"].map((category) => (
           <TabsContent key={category} value={category} className="mt-0">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {videosData
@@ -654,43 +762,61 @@ function VideoCard({ video, index }: VideoCardProps) {
                 <DialogDescription>{video.description}</DialogDescription>
               </DialogHeader>
               <div className="aspect-video w-full">
-                {(isTencentVideo || video.videoUrl.endsWith('.mp4') || video.videoUrl.endsWith('.webm'))? (
-                  <video
-                    src={video.videoUrl}
-                    controls
-                    controlsList="nodownload"
-                    onContextMenu={(e) => e.preventDefault()}
-                    preload="metadata" // 仅预加载元数据
-                    className="h-full w-full"
-                    poster={video.thumbnail}
-                  />
-                ) : video.videoUrl.includes('bilibili.com') ? (
-                  <iframe
-                    src={`//player.bilibili.com/player.html?${new URLSearchParams({
-                      bvid: video.videoUrl.match(/video\/(BV\w+)/)?.[1] || '',
-                      page: '1',
-                      high_quality: '1',
-                      autoplay: '0',
-                      danmaku: '0'
-                    })}`}
-                    className="w-full h-full border-none"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    scrolling="no"
-                    frameBorder="no"
-                    sandbox="allow-scripts allow-same-origin"
-                    title={video.title}
-                  />
-                ) : (
-                  <iframe
-                    src={video.videoUrl}
-                    className="h-full w-full"
-                    allowFullScreen
-                    title={video.title}
-                    frameBorder="0"
-                  />
-                )}
-              </div>
+  {(isTencentVideo || video.videoUrl.endsWith('.mp4') || video.videoUrl.endsWith('.webm')) ? (
+    <video
+      src={video.videoUrl}
+      controls
+      controlsList="nodownload"
+      onContextMenu={(e) => e.preventDefault()}
+      preload="metadata"
+      className="h-full w-full"
+      poster={video.thumbnail}
+    />
+  ) : video.videoUrl.includes('bilibili.com') ? (
+    <iframe
+      src={`//player.bilibili.com/player.html?${new URLSearchParams({
+        bvid: video.videoUrl.match(/video\/(BV\w+)/)?.[1] || '',
+        page: '1',
+        high_quality: '1',
+        autoplay: '0',
+        danmaku: '0'
+      })}`}
+      className="w-full h-full border-none"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+      scrolling="no"
+      frameBorder="no"
+      sandbox="allow-scripts allow-same-origin"
+      title={video.title}
+    />
+  ) : video.videoUrl.includes('douyin.com') ? (
+    // 抖音链接处理
+    <div className="flex flex-col items-center justify-center h-full bg-gray-100 rounded-lg p-4">
+      <div className="text-center mb-4">
+        <p className="text-lg font-semibold mb-2">抖音视频</p>
+        <p className="text-sm text-gray-600">此视频需要跳转到抖音App观看</p>
+      </div>
+      <Button asChild>
+        <a 
+          href={video.videoUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="bg-pink-500 hover:bg-pink-600 text-white"
+        >
+          打开抖音观看
+        </a>
+      </Button>
+    </div>
+  ) : (
+    <iframe
+      src={video.videoUrl}
+      className="h-full w-full"
+      allowFullScreen
+      title={video.title}
+      frameBorder="0"
+    />
+  )}
+</div>
             </DialogContent>
           </Dialog>
         </CardContent>
